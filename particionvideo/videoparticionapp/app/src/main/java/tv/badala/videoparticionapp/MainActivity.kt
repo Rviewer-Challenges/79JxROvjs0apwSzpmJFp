@@ -30,6 +30,11 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
+fun mainScreen(){
+
+}
+
+@Composable
 fun Greeting(name: String) {
     Text(text = "Hello $name!")
 }
