@@ -15,6 +15,8 @@ import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -48,7 +50,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainNavigation(model: MainViewModel){
     val navController = rememberNavController()
-    NavHost(navController = navController, startDestination = "tag") {
+    NavHost(navController = navController, startDestination = "main") {
         composable("main"){ MainScreen(navController = navController, model = model) }
         composable("tag"){ TagScreen(model = model,navController = navController) }
         composable("category"){ CategoryScreen(model = model,navController = navController)}
@@ -81,10 +83,57 @@ fun BottomNavItem(model: MainViewModel,navController: NavController){
 
 @Composable
 fun MainScreen(model: MainViewModel,navController: NavController){
-
+    val diapolist=model.listdiapo.observeAsState().value!!
+    val numd=model.numdi.observeAsState().value!!
+    Image(
+        painter = painterResource(id = R.drawable.fondo),
+        contentDescription = "",
+        modifier = Modifier
+            .fillMaxSize(),
+        contentScale = ContentScale.FillBounds
+    )
     Column(modifier = Modifier)
     {
-        Text(text = "Mis etiquetas:")
+        Row() {
+            IconButton(
+                modifier = Modifier.weight(1f),
+                onClick = {
+                    if (numd>0){
+                        model.numdi.postValue(numd-1)
+                    }
+            }) {
+                Icon(Icons.Filled.ChevronLeft, contentDescription = "Localized description")
+            }
+            IconButton(
+                modifier = Modifier.weight(1f),
+                onClick = {
+                    if(numd==diapolist.size-1){
+                        navController.navigate("tag") }
+                    else{
+                        model.numdi.postValue(numd+1)
+                    }
+            }) {
+                Icon(Icons.Filled.ChevronRight, contentDescription = "Localized description")
+            }
+            TextButton(modifier = Modifier.weight(1f),
+                onClick = { navController.navigate("tag") }) {
+                Text("omitir", style = MaterialTheme.typography.h5)
+            }
+        }
+        Text(text = diapolist[numd].texto, style = MaterialTheme.typography.h5)
+        Column(modifier = Modifier
+            .fillMaxWidth()
+            .weight(1f)) {
+            Image(
+                painter = painterResource(id = diapolist[numd].imagen),
+                contentDescription = "",
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(6.dp),
+                contentScale = ContentScale.Fit
+            )
+
+        }
     }
 
 }
@@ -171,8 +220,8 @@ fun TagScreen(model: MainViewModel,navController: NavController){
                 Button(onClick = { model.createNewTag() }) {
                     Text(text = "Otra etiqueta")
                 }
-                listTagItem.forEachIndexed { index, tagItem ->
-                    MyTag(index = index, tagItem = tagItem, model = model)
+                listTagItem.forEachIndexed { _, tagItem ->
+                    MyTag(tagItem = tagItem, model = model)
                 }
             }
             }
@@ -184,7 +233,7 @@ fun TagScreen(model: MainViewModel,navController: NavController){
 }
 
 @Composable
-fun MyTag(index: Int,tagItem: TagItem,model: MainViewModel){
+fun MyTag(tagItem: TagItem,model: MainViewModel){
     val horaactual=model.houractual.observeAsState().value!!
 
     Card (modifier = Modifier
@@ -249,6 +298,9 @@ fun MyTag(index: Int,tagItem: TagItem,model: MainViewModel){
 
 @Composable
 fun VideoScreen(navController: NavController,model: MainViewModel){
+    val link=model.link.observeAsState().value!!
+    val json=model.json.observeAsState().value!!
+    val scrollState= rememberScrollState()
     Scaffold(
         bottomBar = { BottomNavItem(model = model, navController = navController)}
     ) {
@@ -258,8 +310,23 @@ fun VideoScreen(navController: NavController,model: MainViewModel){
             modifier = Modifier
                 .padding(it)
                 .fillMaxSize()
+                .verticalScroll(scrollState)
         ) {
             Text("Json:", style = MaterialTheme.typography.h6)
+            OutlinedTextField(
+                value = link,
+                onValueChange = { text ->
+                    model.link.postValue(text)
+                },
+                label = { Text(text = "Descripcion:") },
+                modifier = Modifier
+                    .padding(10.dp)
+                    .fillMaxWidth()
+            )
+            Button(onClick = { model.createJson() }) {
+                Text(text = "actualiza el json" )
+            }
+            Text(text = json)
 
         }
     }
@@ -318,7 +385,11 @@ fun DialogEdit(model: MainViewModel){
     val selectcategory=model.selectcategory.observeAsState().value!!
     val mainCategory=model.mainCategory.observeAsState().value!!
     val mainTag=model.mainTagItem.observeAsState().value!!
-    Dialog(onDismissRequest = { model.mainTagItem.postValue(TagItem(descriptionTag = "", hourStart = "-1", hourEnd = "", category = CategoryItem(Color.Transparent,""),false)) }) {
+    val horaactual=model.houractual.observeAsState().value!!
+    Dialog(onDismissRequest = {
+        model.updateTag(mainTag)
+        model.mainTagItem.postValue(TagItem(descriptionTag = "", hourStart = "-1", hourEnd = "", category = CategoryItem(Color.Transparent,""),false)) }
+    ) {
         Card(shape = RoundedCornerShape(20.dp)) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -355,15 +426,38 @@ fun DialogEdit(model: MainViewModel){
                             } else {
                                 BorderStroke(0.dp, Color.Black)
                             },
-                            onClick = { model.mainCategory.postValue(index) },
+                            onClick = {
+                                model.mainCategory.postValue(index)
+                                model.mainTagItem.postValue(
+                                TagItem(
+                                    mainTag.descriptionTag,
+                                    mainTag.hourStart,
+                                    mainTag.hourEnd,
+                                    categoryItem,
+                                    mainTag.end
+                                )
+                            ) },
                             colors = ButtonDefaults.buttonColors(backgroundColor = categoryItem.colorCategory)
                         ) {
 
                         }
                     }
                 }
-                Text(text = "Hora inicio:")
-                Text(text = "Hora Final:")
+                Text(text = "Hora inicio:"+mainTag.hourStart)
+                Row() {
+                    Text(text = "Hora Final: ")
+                    if (mainTag.end) {
+                        Text( text = mainTag.hourEnd)
+                    } else {
+                        Text( text = horaactual)
+                        IconButton(onClick = {
+                            model.updateAndStop(mainTag)
+                            model.mainTagItem.postValue(TagItem(descriptionTag = "", hourStart = "-1", hourEnd = "", category = CategoryItem(Color.Transparent,""),false))
+                    }) {
+                            Icon(Icons.Filled.PanTool, contentDescription = "Localized description")
+                        }
+                    }
+                }
 
             }
         }
