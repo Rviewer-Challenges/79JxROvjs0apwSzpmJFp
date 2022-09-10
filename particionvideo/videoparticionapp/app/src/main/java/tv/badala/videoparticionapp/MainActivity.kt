@@ -4,8 +4,9 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -16,11 +17,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import tv.badala.videoparticionapp.data.CategoryItem
+import tv.badala.videoparticionapp.data.TagItem
 import tv.badala.videoparticionapp.ui.theme.VideoparticionappTheme
 
 class MainActivity : ComponentActivity() {
@@ -81,16 +84,22 @@ fun MainScreen(model: MainViewModel,navController: NavController){
 
     Column(modifier = Modifier)
     {
-        Text(text = "Mis videos:")
+        Text(text = "Mis etiquetas:")
     }
 
 }
 
 @Composable
 fun TagScreen(model: MainViewModel,navController: NavController){
+    val lastChage=model.lastChage.observeAsState().value!!
     val selectcategory=model.selectcategory.observeAsState().value!!
     val mainCategory=model.mainCategory.observeAsState().value!!
-    var allOrOne by remember { mutableStateOf("Todas") }
+    val isCurrent=model.isCurrent.observeAsState().value!!
+    val allOrOne=model.allorOne.observeAsState().value!!
+    val hourStart=model.hourStartVideo.observeAsState().value!!
+    val listTagItem=model.listTagItem.observeAsState().value!!
+    val scrollState= rememberScrollState()
+    val mainTag=model.mainTagItem.observeAsState().value!!
 
     Scaffold(
         bottomBar = { BottomNavItem(model = model, navController = navController)}
@@ -102,13 +111,27 @@ fun TagScreen(model: MainViewModel,navController: NavController){
                 .padding(it)
                 .fillMaxSize()
         ) {
-            Text("Etiquetas", style = MaterialTheme.typography.h6)
-            Text("Hora: ", style = MaterialTheme.typography.h6)
-            Row(modifier = Modifier.height(500.dp)) {
+            Text("Etiquetas", style = MaterialTheme.typography.h5)
+            if(isCurrent){
+                Text("Inicio: $hourStart",style = MaterialTheme.typography.h5)
+                
+            }else{
+                Button(onClick = { model.isCurrent.postValue(true)
+                    model.createNewTag()
+                    model.sethourstart()
+                }) {
+                    Text(text = "Empezo el stream")
+
+                }
+            }
+            Text("Utimo cambio: $lastChage", style = MaterialTheme.typography.h5)
+            Row(modifier = Modifier) {
                 Button(modifier = Modifier.weight(1f),
                     border = if(allOrOne=="Todas"){BorderStroke(6.dp,Color.Black)}
                     else{BorderStroke(0.dp,Color.Black) },
-                    onClick = { allOrOne="Todas" },
+                    onClick = { model.allorOne.postValue("Todas")
+                        model.filterByColor(Color.Transparent)
+                              },
                     colors = ButtonDefaults.buttonColors(backgroundColor = Color.Transparent)
                 ) {
                     Text(text = "Todas")
@@ -116,22 +139,109 @@ fun TagScreen(model: MainViewModel,navController: NavController){
                 Button(modifier = Modifier.weight(1f),
                     border = if(allOrOne=="Una"){BorderStroke(6.dp,Color.Black)}
                     else{BorderStroke(0.dp,Color.Black) },
-                    onClick = { allOrOne="Una" },
+                    onClick = { model.allorOne.postValue("Una")
+                        model.filterByColor(selectcategory[mainCategory].colorCategory)
+                              },
                     colors = ButtonDefaults.buttonColors(backgroundColor = Color.Transparent)
                 ) {
                     Text(text = "Una")
                 }
                 selectcategory.forEachIndexed { index, categoryItem ->
                     Button(modifier = Modifier.weight(1f),
-                        border = if(mainCategory==index){BorderStroke(6.dp,Color.Black)}
+                        border = if(mainCategory==index){BorderStroke(6.dp,Color.Black) }
                         else{BorderStroke(0.dp,Color.Black) },
-                        onClick = { model.mainCategory.postValue(index) },
+                        onClick = { model.mainCategory.postValue(index)
+                            if(allOrOne=="Una"){
+                                model.filterByColor(selectcategory[index].colorCategory)
+                            } },
                         colors = ButtonDefaults.buttonColors(backgroundColor = categoryItem.colorCategory)
                     ) {
 
                     }
-                    
                 }
+            }
+            Column(
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .padding(it)
+                    .verticalScroll(scrollState)
+                    .fillMaxSize()
+            ) {if(isCurrent) {
+                Button(onClick = { model.createNewTag() }) {
+                    Text(text = "Otra etiqueta")
+                }
+                listTagItem.forEachIndexed { index, tagItem ->
+                    MyTag(index = index, tagItem = tagItem, model = model)
+                }
+            }
+            }
+        }
+    }
+    if (mainTag.hourStart!="-1") {
+        DialogEdit(model = model)
+    }
+}
+
+@Composable
+fun MyTag(index: Int,tagItem: TagItem,model: MainViewModel){
+    val horaactual=model.houractual.observeAsState().value!!
+
+    Card (modifier = Modifier
+        .padding(15.dp)
+        .fillMaxWidth(),
+        shape = RoundedCornerShape(10.dp)
+    ){
+        Row(modifier = Modifier.height(100.dp)) {
+            Card(modifier= Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .clickable { model.mainTagItem.postValue(tagItem) }) {
+                    Text(modifier= Modifier.weight(1f),text = tagItem.descriptionTag)
+            }
+            Column(
+                modifier= Modifier,
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Button(
+                    modifier= Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(backgroundColor = tagItem.category.colorCategory),
+                    onClick = { /*TODO*/ }) {
+                    Text(text = "C")
+                }
+            }
+            Column(
+                modifier= Modifier.padding(2.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Text(modifier = Modifier.weight(1f), text = "Inicio:")
+                Text(modifier = Modifier.weight(1f), text = tagItem.hourStart)
+            }
+            if (!tagItem.end) {
+                IconButton(onClick = {
+                    model.stopTag(tagItem)
+                }) {
+                    Icon(Icons.Filled.PanTool, contentDescription = "Localized description")
+                }
+            }
+            Column(
+                modifier= Modifier.padding(2.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Text(modifier = Modifier.weight(1f), text = "Final:")
+                if (tagItem.end){
+                    Text(modifier = Modifier.weight(1f), text = tagItem.hourEnd)
+                }else{
+                    Text(modifier = Modifier.weight(1f), text = horaactual)
+                }
+            }
+            IconButton(onClick = {
+
+            }) {
+                Icon(Icons.Filled.Clear, contentDescription = "Localized description")
             }
         }
     }
@@ -149,7 +259,7 @@ fun VideoScreen(navController: NavController,model: MainViewModel){
                 .padding(it)
                 .fillMaxSize()
         ) {
-            Text("Video:", style = MaterialTheme.typography.h6)
+            Text("Json:", style = MaterialTheme.typography.h6)
 
         }
     }
@@ -158,6 +268,8 @@ fun VideoScreen(navController: NavController,model: MainViewModel){
 
 @Composable
 fun CategoryScreen(navController: NavController,model: MainViewModel){
+    val selectcategory=model.selectcategory.observeAsState().value!!
+    val scrollState= rememberScrollState()
     Scaffold(
         bottomBar = { BottomNavItem(model = model, navController = navController)}
     ) {
@@ -166,13 +278,98 @@ fun CategoryScreen(navController: NavController,model: MainViewModel){
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
                 .padding(it)
+                .verticalScroll(scrollState)
                 .fillMaxSize()
         ) {
             Text("Categorias:", style = MaterialTheme.typography.h6)
+            selectcategory.forEachIndexed { index, categoryItem ->
+                Card(modifier = Modifier
+                    .padding(15.dp)
+                    .fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(categoryItem.colorCategory)
 
-
+                    ) {
+                        OutlinedTextField(
+                            value = categoryItem.descriptionCategory,
+                            onValueChange = { text ->
+                                model.reloadCategorys(index, text)
+                            },
+                            label = { Text(text = "Descripcion:") },
+                            modifier = Modifier
+                                .padding(10.dp)
+                                .fillMaxWidth()
+                        )
+                    }
+                }
+            }
         }
     }
+}
+
+@Composable
+fun DialogEdit(model: MainViewModel){
+    val selectcategory=model.selectcategory.observeAsState().value!!
+    val mainCategory=model.mainCategory.observeAsState().value!!
+    val mainTag=model.mainTagItem.observeAsState().value!!
+    Dialog(onDismissRequest = { model.mainTagItem.postValue(TagItem(descriptionTag = "", hourStart = "-1", hourEnd = "", category = CategoryItem(Color.Transparent,""),false)) }) {
+        Card(shape = RoundedCornerShape(20.dp)) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+
+
+            ) {
+                OutlinedTextField(
+                    value = mainTag.descriptionTag,
+                    onValueChange = { text ->
+                        model.mainTagItem.postValue(
+                            TagItem(
+                                text,
+                                mainTag.hourStart,
+                                mainTag.hourEnd,
+                                mainTag.category,
+                                mainTag.end
+                            )
+                        )
+                    },
+                    label = { Text(text = "Descripción etiqueta") },
+                    modifier = Modifier
+                        .padding(10.dp)
+                        .fillMaxWidth()
+                )
+                Row() {
+                    selectcategory.forEachIndexed { index, categoryItem ->
+                        Button(
+                            modifier = Modifier.weight(1f),
+                            border = if (mainCategory == index) {
+                                BorderStroke(6.dp, Color.Black)
+                            } else {
+                                BorderStroke(0.dp, Color.Black)
+                            },
+                            onClick = { model.mainCategory.postValue(index) },
+                            colors = ButtonDefaults.buttonColors(backgroundColor = categoryItem.colorCategory)
+                        ) {
+
+                        }
+                    }
+                }
+                Text(text = "Hora inicio:")
+                Text(text = "Hora Final:")
+
+            }
+        }
+        
+    }
+    
 }
 
 
